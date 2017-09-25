@@ -502,8 +502,6 @@ macro_rules! create_config {
         impl Default for Config {
             fn default() -> Config {
                 Config {
-                    // should we allow unstable features?
-                    unstable_features: false,
                     $(
                         $i: (Cell::new(false), false, $def, $exp),
                     )+
@@ -674,8 +672,8 @@ create_config! {
     multiline_match_arm_forces_block: bool, false, false,
         "Force multiline match arm bodies to be wrapped in a block";
     // TODO: these two is NOT Experimental Feature, only for testing
-    merge_derives: bool, true, false, "Merge multiple `#[derive(...)]` into a single one";
-    binop_separator: SeparatorPlace, SeparatorPlace::Front, false,
+    merge_derives: bool, true, true, "Merge multiple `#[derive(...)]` into a single one";
+    binop_separator: SeparatorPlace, SeparatorPlace::Front, true,
         "Where to put a binary operator when a binary expression goes multiline.";
 }
 
@@ -690,25 +688,6 @@ mod test {
         assert_eq!(config.verbose(), false);
         config.set().verbose(true);
         assert_eq!(config.verbose(), true);
-    }
-
-    #[test]
-    fn test_experimental() {
-        let mut config = Config::default();
-        assert_eq!(config.is_experimental().binop_separator(), false);
-        assert_eq!(
-            config.is_experimental().multiline_closure_forces_block(),
-            false
-        );
-        config.set_experimental().binop_separator(true);
-        assert_eq!(config.is_experimental().binop_separator(), true);
-        config
-            .set_experimental()
-            .multiline_closure_forces_block(true);
-        assert_eq!(
-            config.is_experimental().multiline_closure_forces_block(),
-            true
-        );
     }
 
     #[test]
