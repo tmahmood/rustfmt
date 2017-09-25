@@ -122,6 +122,12 @@ fn make_opts() -> Options {
 
     opts.optflag(
         "",
+        "unstable-features",
+        "Enables unstable features. Only available in rust nightlies",
+    );
+
+    opts.optflag(
+        "",
         "config-help",
         "show details of rustfmt configuration options",
     );
@@ -150,6 +156,7 @@ fn make_opts() -> Options {
         "Format specified line ranges. See README for more detail on the JSON format.",
         "JSON",
     );
+
 
     opts
 }
