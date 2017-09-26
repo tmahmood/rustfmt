@@ -693,21 +693,6 @@ mod test {
     }
 
     #[test]
-    fn test_release_channel() {
-        let mut config = Config::default();
-        assert_eq!(false, config.unstable_features);
-        config.set_unstable_feature_flag(true);
-        option_env!("CFG_RELEASE_CHANNEL")
-            .map(|c| c == "nightly")
-            .unwrap_or(true);
-        if option_env!("CFG_RELEASE_CHANNEL").unwrap() == "nightly" {
-            assert_eq!(true, config.unstable_features);
-        } else {
-            assert_eq!(false, config.unstable_features);
-        }
-    }
-
-    #[test]
     fn test_experimental() {
         let mut config = Config::default();
         assert_eq!(config.is_experimental().binop_separator(), false);
