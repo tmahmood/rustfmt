@@ -217,10 +217,11 @@ macro_rules! create_config {
     ($($i:ident: $ty:ty, $def:expr, $exp:expr, $( $dstring:expr ),+ );+ $(;)*) => (
         #[derive(Clone)]
         pub struct Config {
+            // are we using unstable features or not
+            unstable_features: bool,
             // For each config item, we store a bool indicating whether it has
             // been accessed and the value, and a bool whether the option was
             // manually initialised, or taken from the default,
-            unstable_features: bool,
             $($i: (Cell<bool>, bool, $ty, bool)),+
         }
 
@@ -244,6 +245,7 @@ macro_rules! create_config {
                     .map_err(|e| format!("Could not output config: {}", e.to_string()))
             }
         }
+
 
         // Macro hygiene won't allow us to make `set_$i()` methods on Config
         // for each item, so this struct is used to give the API to set values:
@@ -300,6 +302,17 @@ macro_rules! create_config {
                 self.$i.2.clone()
             }
             )+
+
+            pub fn set_unstable_feature_flag(&mut self, value: bool){
+                let rust_nightly = option_env!("CFG_RELEASE_CHANNEL")
+                    .map(|c| c == "nightly")
+                    .unwrap_or(false);
+                if !rust_nightly {
+                    eprintln!("Unstable feature flag is only available in nightly version");
+                } else {
+                    self.unstable_features = value;
+                }
+            }
 
             pub fn set<'a>(&'a mut self) -> ConfigSetter<'a> {
                 ConfigSetter(self)
@@ -490,9 +503,7 @@ macro_rules! create_config {
             fn default() -> Config {
                 Config {
                     // should we allow unstable features?
-                    unstable_features: option_env!("CFG_RELEASE_CHANNEL")
-                                    .map(|c| c == "nightly")
-                                    .unwrap_or(true),
+                    unstable_features: false,
                     $(
                         $i: (Cell::new(false), false, $def, $exp),
                     )+
@@ -663,8 +674,8 @@ create_config! {
     multiline_match_arm_forces_block: bool, false, false,
         "Force multiline match arm bodies to be wrapped in a block";
     // TODO: these two is NOT Experimental Feature, only for testing
-    merge_derives: bool, true, true, "Merge multiple `#[derive(...)]` into a single one";
-    binop_separator: SeparatorPlace, SeparatorPlace::Front, true,
+    merge_derives: bool, true, false, "Merge multiple `#[derive(...)]` into a single one";
+    binop_separator: SeparatorPlace, SeparatorPlace::Front, false,
         "Where to put a binary operator when a binary expression goes multiline.";
 }
 
@@ -683,25 +694,29 @@ mod test {
 
     #[test]
     fn test_release_channel() {
-        let config = Config::default();
-        assert_eq!(
-            option_env!("CFG_RELEASE_CHANNEL")
-                .map(|c| c == "nightly")
-                .unwrap_or(true),
-            config.unstable_features
-        );
+        let mut config = Config::default();
+        assert_eq!(false, config.unstable_features);
+        config.set_unstable_feature_flag(true);
+        option_env!("CFG_RELEASE_CHANNEL")
+            .map(|c| c == "nightly")
+            .unwrap_or(true);
+        if option_env!("CFG_RELEASE_CHANNEL").unwrap() == "nightly" {
+            assert_eq!(true, config.unstable_features);
+        } else {
+            assert_eq!(false, config.unstable_features);
+        }
     }
 
     #[test]
     fn test_experimental() {
         let mut config = Config::default();
-        assert_eq!(config.is_experimental().binop_separator(), true);
+        assert_eq!(config.is_experimental().binop_separator(), false);
         assert_eq!(
             config.is_experimental().multiline_closure_forces_block(),
             false
         );
-        config.set_experimental().binop_separator(false);
-        assert_eq!(config.is_experimental().binop_separator(), false);
+        config.set_experimental().binop_separator(true);
+        assert_eq!(config.is_experimental().binop_separator(), true);
         config
             .set_experimental()
             .multiline_closure_forces_block(true);
