@@ -304,7 +304,7 @@ macro_rules! create_config {
             )+
 
             pub fn set_unstable_feature_flag(&mut self, value: bool){
-                let rust_nightly = option_env!("CFG_RELEASE_CHANNEL")
+                let rust_nightly = option_env!("CHANNEL")
                     .map(|c| c == "nightly")
                     .unwrap_or(false);
                 if !rust_nightly {
@@ -709,6 +709,21 @@ mod test {
             config.is_experimental().multiline_closure_forces_block(),
             true
         );
+    }
+
+    #[test]
+    fn test_release_channel() {
+        let mut config = Config::default();
+        assert_eq!(false, config.unstable_features);
+        config.set_unstable_feature_flag(true);
+        option_env!("CHANNEL")
+            .map(|c| c == "nightly")
+            .unwrap_or(true);
+        if option_env!("CHANNEL").unwrap() == "nightly" {
+            assert_eq!(true, config.unstable_features);
+        } else {
+            assert_eq!(false, config.unstable_features);
+        }
     }
 
     #[test]
