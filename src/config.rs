@@ -672,8 +672,8 @@ create_config! {
     multiline_match_arm_forces_block: bool, false, false,
         "Force multiline match arm bodies to be wrapped in a block";
     // TODO: these two is NOT Experimental Feature, only for testing
-    merge_derives: bool, true, true, "Merge multiple `#[derive(...)]` into a single one";
-    binop_separator: SeparatorPlace, SeparatorPlace::Front, true,
+    merge_derives: bool, true, false, "Merge multiple `#[derive(...)]` into a single one";
+    binop_separator: SeparatorPlace, SeparatorPlace::Front, false,
         "Where to put a binary operator when a binary expression goes multiline.";
 }
 
