@@ -214,15 +214,13 @@ impl ConfigHelpItem {
 }
 
 macro_rules! create_config {
-    ($($i:ident: $ty:ty, $def:expr, $exp:expr, $( $dstring:expr ),+ );+ $(;)*) => (
+    ($($i:ident: $ty:ty, $def:expr, $( $dstring:expr ),+ );+ $(;)*) => (
         #[derive(Clone)]
         pub struct Config {
-            // are we using unstable features or not
-            unstable_features: bool,
             // For each config item, we store a bool indicating whether it has
             // been accessed and the value, and a bool whether the option was
             // manually initialised, or taken from the default,
-            $($i: (Cell<bool>, bool, $ty, bool)),+
+            $($i: (Cell<bool>, bool, $ty)),+
         }
 
         // Just like the Config struct but with each property wrapped
@@ -246,7 +244,6 @@ macro_rules! create_config {
             }
         }
 
-
         // Macro hygiene won't allow us to make `set_$i()` methods on Config
         // for each item, so this struct is used to give the API to set values:
         // `config.get().option(false)`. It's pretty ugly. Consider replacing
@@ -258,26 +255,6 @@ macro_rules! create_config {
             $(
             pub fn $i(&mut self, value: $ty) {
                 (self.0).$i.2 = value;
-            }
-            )+
-        }
-
-        pub struct ExperimentalFeature<'a>(&'a Config);
-
-        impl<'a> ExperimentalFeature<'a> {
-            $(
-            pub fn $i(&self) -> bool {
-                (self.0).$i.3
-            }
-            )+
-        }
-
-        pub struct ExperimentalFeatureSetter<'a>(&'a mut Config);
-
-        impl<'a> ExperimentalFeatureSetter<'a> {
-            $(
-            pub fn $i(&mut self, value: bool) {
-                (self.0).$i.3 = value;
             }
             )+
         }
@@ -303,31 +280,12 @@ macro_rules! create_config {
             }
             )+
 
-            pub fn set_unstable_feature_flag(&mut self, value: bool){
-                let rust_nightly = option_env!("CFG_RELEASE_CHANNEL")
-                    .map(|c| c == "nightly")
-                    .unwrap_or(false);
-                if !rust_nightly {
-                    eprintln!("Unstable feature flag is only available in nightly version");
-                } else {
-                    self.unstable_features = value;
-                }
-            }
-
             pub fn set<'a>(&'a mut self) -> ConfigSetter<'a> {
                 ConfigSetter(self)
             }
 
             pub fn was_set<'a>(&'a self) -> ConfigWasSet<'a> {
                 ConfigWasSet(self)
-            }
-
-            pub fn is_experimental(&self) -> ExperimentalFeature {
-                ExperimentalFeature(self)
-            }
-
-            pub fn set_experimental<'a>(&'a mut self) -> ExperimentalFeatureSetter<'a> {
-                ExperimentalFeatureSetter(self)
             }
 
             fn fill_from_parsed_config(mut self, parsed: PartialConfig) -> Config {
@@ -339,7 +297,6 @@ macro_rules! create_config {
             )+
                 self
             }
-
 
             pub fn from_toml(toml: &str) -> Result<Config, String> {
                 let parsed: toml::Value =
@@ -503,7 +460,7 @@ macro_rules! create_config {
             fn default() -> Config {
                 Config {
                     $(
-                        $i: (Cell::new(false), false, $def, $exp),
+                        $i: (Cell::new(false), false, $def),
                     )+
                 }
             }
@@ -536,144 +493,135 @@ pub fn get_toml_path(dir: &Path) -> Result<Option<PathBuf>, Error> {
 
 
 create_config! {
-    verbose: bool, false, false, "Use verbose output";
-    disable_all_formatting: bool, false, false, "Don't reformat anything";
-    skip_children: bool, false, false, "Don't reformat out of line modules";
-    file_lines: FileLines, FileLines::all(), false,
-        "Lines to format; this is not supported in rustfmt.toml, and can only be \
-         specified via the --file-lines option";
-    max_width: usize, 100, false, "Maximum width of each line";
-    error_on_line_overflow: bool, true, false, "Error if unable to get all lines within \
-                                                max_width";
-    error_on_line_overflow_comments: bool, true, false, "Error if unable to get comments \
-                                                within max_width";
-    tab_spaces: usize, 4, false, "Number of spaces per tab";
-    fn_call_width: usize, 60, false,
+    unstable_features: bool, false, "Enables unstable features. Only available on nightly channel";
+    verbose: bool, false, "Use verbose output";
+    disable_all_formatting: bool, false, "Don't reformat anything";
+    skip_children: bool, false, "Don't reformat out of line modules";
+    file_lines: FileLines, FileLines::all(),
+        "Lines to format; this is not supported in rustfmt.toml, and can only be specified \
+         via the --file-lines option";
+    max_width: usize, 100, "Maximum width of each line";
+    error_on_line_overflow: bool, true, "Error if unable to get all lines within max_width";
+    error_on_line_overflow_comments: bool, true, "Error if unable to get comments within max_width";
+    tab_spaces: usize, 4, "Number of spaces per tab";
+    fn_call_width: usize, 60,
         "Maximum width of the args of a function call before falling back to vertical formatting";
-    struct_lit_width: usize, 18, false,
+    struct_lit_width: usize, 18,
         "Maximum width in the body of a struct lit before falling back to vertical formatting";
-    struct_variant_width: usize, 35, false,
+    struct_variant_width: usize, 35,
         "Maximum width in the body of a struct variant before falling back to vertical formatting";
-    force_explicit_abi: bool, true, false, "Always print the abi for extern items";
-    newline_style: NewlineStyle, NewlineStyle::Unix, false, "Unix or Windows line endings";
-    fn_brace_style: BraceStyle, BraceStyle::SameLineWhere, false, "Brace style for functions";
-    item_brace_style: BraceStyle, BraceStyle::SameLineWhere, false, "Brace style for structs and \
-                                                                    enums";
-    control_style: Style, Style::Rfc, false, "Indent style for control flow statements";
-    control_brace_style: ControlBraceStyle, ControlBraceStyle::AlwaysSameLine, false,
+    force_explicit_abi: bool, true, "Always print the abi for extern items";
+    newline_style: NewlineStyle, NewlineStyle::Unix, "Unix or Windows line endings";
+    fn_brace_style: BraceStyle, BraceStyle::SameLineWhere, "Brace style for functions";
+    item_brace_style: BraceStyle, BraceStyle::SameLineWhere, "Brace style for structs and enums";
+    control_style: Style, Style::Rfc, "Indent style for control flow statements";
+    control_brace_style: ControlBraceStyle, ControlBraceStyle::AlwaysSameLine,
         "Brace style for control flow constructs";
-    impl_empty_single_line: bool, true, false, "Put empty-body implementations on a single line";
-    trailing_comma: SeparatorTactic, SeparatorTactic::Vertical, false,
+    impl_empty_single_line: bool, true, "Put empty-body implementations on a single line";
+    trailing_comma: SeparatorTactic, SeparatorTactic::Vertical,
         "How to handle trailing commas for lists";
-    trailing_semicolon: bool, true, false, "Add trailing semicolon after break, continue \
-                                            and return";
-    fn_empty_single_line: bool, true, false, "Put empty-body functions on a single line";
-    fn_single_line: bool, false, false, "Put single-expression functions on a single line";
-    fn_return_indent: ReturnIndent, ReturnIndent::WithArgs, false,
+    trailing_semicolon: bool, true, "Add trailing semicolon after break, continue and return";
+    fn_empty_single_line: bool, true, "Put empty-body functions on a single line";
+    fn_single_line: bool, false, "Put single-expression functions on a single line";
+    fn_return_indent: ReturnIndent, ReturnIndent::WithArgs,
         "Location of return type in function declaration";
-    fn_args_paren_newline: bool, false, false, "If function argument parenthesis goes on a newline";
-    fn_args_density: Density, Density::Tall, false, "Argument density in functions";
-    fn_args_layout: IndentStyle, IndentStyle::Block, false,
+    fn_args_paren_newline: bool, false, "If function argument parenthesis goes on a newline";
+    fn_args_density: Density, Density::Tall, "Argument density in functions";
+    fn_args_layout: IndentStyle, IndentStyle::Block,
         "Layout of function arguments and tuple structs";
-    array_layout: IndentStyle, IndentStyle::Block, false, "Indent on arrays";
-    array_width: usize, 60, false,
+    array_layout: IndentStyle, IndentStyle::Block, "Indent on arrays";
+    array_width: usize, 60,
         "Maximum width of an array literal before falling back to vertical formatting";
-    array_horizontal_layout_threshold: usize, 0, false,
+    array_horizontal_layout_threshold: usize, 0,
         "How many elements array must have before rustfmt uses horizontal layout.";
-    type_punctuation_density: TypeDensity, TypeDensity::Wide, false,
+    type_punctuation_density: TypeDensity, TypeDensity::Wide,
         "Determines if '+' or '=' are wrapped in spaces in the punctuation of types";
-    where_style: Style, Style::Rfc, false, "Overall strategy for where clauses";
+    where_style: Style, Style::Rfc, "Overall strategy for where clauses";
     // TODO:
     // 1. Should we at least try to put the where clause on the same line as the rest of the
     // function decl?
     // 2. Currently options `Tall` and `Vertical` produce the same output.
-    where_density: Density, Density::Vertical, false, "Density of a where clause";
-    where_layout: ListTactic, ListTactic::Vertical, false, "Element layout inside a where clause";
-    where_pred_indent: IndentStyle, IndentStyle::Visual, false,
+    where_density: Density, Density::Vertical, "Density of a where clause";
+    where_layout: ListTactic, ListTactic::Vertical, "Element layout inside a where clause";
+    where_pred_indent: IndentStyle, IndentStyle::Visual,
         "Indentation style of a where predicate";
-    generics_indent: IndentStyle, IndentStyle::Block, false, "Indentation of generics";
-    struct_lit_style: IndentStyle, IndentStyle::Block, false, "Style of struct definition";
-    struct_lit_multiline_style: MultilineStyle, MultilineStyle::PreferSingle, false,
+    generics_indent: IndentStyle, IndentStyle::Block, "Indentation of generics";
+    struct_lit_style: IndentStyle, IndentStyle::Block, "Style of struct definition";
+    struct_lit_multiline_style: MultilineStyle, MultilineStyle::PreferSingle,
         "Multiline style on literal structs";
-    fn_call_style: IndentStyle, IndentStyle::Block, false, "Indentation for function calls, etc.";
-    report_todo: ReportTactic, ReportTactic::Never, false,
+    fn_call_style: IndentStyle, IndentStyle::Block, "Indentation for function calls, etc.";
+    report_todo: ReportTactic, ReportTactic::Never,
         "Report all, none or unnumbered occurrences of TODO in source file comments";
-    report_fixme: ReportTactic, ReportTactic::Never, false,
+    report_fixme: ReportTactic, ReportTactic::Never,
         "Report all, none or unnumbered occurrences of FIXME in source file comments";
-    chain_indent: IndentStyle, IndentStyle::Block, false, "Indentation of chain";
-    chain_one_line_max: usize, 60, false, "Maximum length of a chain to fit on a single line";
-    chain_split_single_child: bool, false, false, "Split a chain with a single child if its length \
+    chain_indent: IndentStyle, IndentStyle::Block, "Indentation of chain";
+    chain_one_line_max: usize, 60, "Maximum length of a chain to fit on a single line";
+    chain_split_single_child: bool, false, "Split a chain with a single child if its length \
                                             exceeds `chain_one_line_max`";
-    imports_indent: IndentStyle, IndentStyle::Visual, false, "Indent of imports";
-    imports_layout: ListTactic, ListTactic::Mixed, false, "Item layout inside a import block";
-    reorder_extern_crates: bool, true, false, "Reorder extern crate statements alphabetically";
-    reorder_extern_crates_in_group: bool, true, false, "Reorder extern crate statements in group";
-    reorder_imports: bool, false, false, "Reorder import statements alphabetically";
-    reorder_imports_in_group: bool, false, false, "Reorder import statements in group";
-    reorder_imported_names: bool, true, false,
+    imports_indent: IndentStyle, IndentStyle::Visual, "Indent of imports";
+    imports_layout: ListTactic, ListTactic::Mixed, "Item layout inside a import block";
+    reorder_extern_crates: bool, true, "Reorder extern crate statements alphabetically";
+    reorder_extern_crates_in_group: bool, true, "Reorder extern crate statements in group";
+    reorder_imports: bool, false, "Reorder import statements alphabetically";
+    reorder_imports_in_group: bool, false, "Reorder import statements in group";
+    reorder_imported_names: bool, true,
         "Reorder lists of names in import statements alphabetically";
-    single_line_if_else_max_width: usize, 50, false, "Maximum line length for single line if-else \
+    single_line_if_else_max_width: usize, 50, "Maximum line length for single line if-else \
                                                 expressions. A value of zero means always break \
                                                 if-else expressions.";
-    format_strings: bool, false, false, "Format string literals where necessary";
-    force_format_strings: bool, false, false, "Always format string literals";
-    take_source_hints: bool, false, false, "Retain some formatting characteristics from the source \
-                                            code";
-    hard_tabs: bool, false, false, "Use tab characters for indentation, spaces for alignment";
-    wrap_comments: bool, false, false, "Break comments to fit on the line";
-    comment_width: usize, 80, false, "Maximum length of comments. No effect unless wrap_comments = \
-                                     true";
-    normalize_comments: bool, false, false, "Convert /* */ comments to // comments where possible";
-    wrap_match_arms: bool, true, false, "Wrap the body of arms in blocks when it does not fit on \
+    format_strings: bool, false, "Format string literals where necessary";
+    force_format_strings: bool, false, "Always format string literals";
+    take_source_hints: bool, false, "Retain some formatting characteristics from the source code";
+    hard_tabs: bool, false, "Use tab characters for indentation, spaces for alignment";
+    wrap_comments: bool, false, "Break comments to fit on the line";
+    comment_width: usize, 80, "Maximum length of comments. No effect unless wrap_comments = true";
+    normalize_comments: bool, false, "Convert /* */ comments to // comments where possible";
+    wrap_match_arms: bool, true, "Wrap the body of arms in blocks when it does not fit on \
                                   the same line with the pattern of arms";
-    match_block_trailing_comma: bool, false, false,
+    match_block_trailing_comma: bool, false,
         "Put a trailing comma after a block based match arm (non-block arms are not affected)";
-    indent_match_arms: bool, true, false, "Indent match arms instead of keeping them at the same \
+    indent_match_arms: bool, true, "Indent match arms instead of keeping them at the same \
                                     indentation level as the match keyword";
-    match_pattern_separator_break_point: SeparatorPlace, SeparatorPlace::Back, false,
+    match_pattern_separator_break_point: SeparatorPlace, SeparatorPlace::Back,
         "Put a match sub-patterns' separator in front or back.";
-    closure_block_indent_threshold: isize, 7, false, "How many lines a closure must have before it \
-                                            is block indented. -1 means never use block indent.";
-    space_before_type_annotation: bool, false, false,
+    closure_block_indent_threshold: isize, 7, "How many lines a closure must have before it is \
+                                               block indented. -1 means never use block indent.";
+    space_before_type_annotation: bool, false,
         "Leave a space before the colon in a type annotation";
-    space_after_type_annotation_colon: bool, true, false,
+    space_after_type_annotation_colon: bool, true,
         "Leave a space after the colon in a type annotation";
-    space_before_struct_lit_field_colon: bool, false, false,
+    space_before_struct_lit_field_colon: bool, false,
         "Leave a space before the colon in a struct literal field";
-    space_after_struct_lit_field_colon: bool, true, false,
+    space_after_struct_lit_field_colon: bool, true,
         "Leave a space after the colon in a struct literal field";
-    space_before_bound: bool, false, false, "Leave a space before the colon in a trait or lifetime\
-                                            bound";
-    space_after_bound_colon: bool, true, false,
+    space_before_bound: bool, false, "Leave a space before the colon in a trait or lifetime bound";
+    space_after_bound_colon: bool, true,
         "Leave a space after the colon in a trait or lifetime bound";
-    spaces_around_ranges: bool, false, false, "Put spaces around the  .. and ... range operators";
-    spaces_within_angle_brackets: bool, false, false, "Put spaces within non-empty generic\
-                                                        arguments";
-    spaces_within_square_brackets: bool, false, false, "Put spaces within non-empty square\
-                                                        brackets";
-    spaces_within_parens: bool, false, false, "Put spaces within non-empty parentheses";
-    use_try_shorthand: bool, false, false, "Replace uses of the try! macro by the ? shorthand";
-    write_mode: WriteMode, WriteMode::Overwrite, false,
+    spaces_around_ranges: bool, false, "Put spaces around the  .. and ... range operators";
+    spaces_within_angle_brackets: bool, false, "Put spaces within non-empty generic arguments";
+    spaces_within_square_brackets: bool, false, "Put spaces within non-empty square brackets";
+    spaces_within_parens: bool, false, "Put spaces within non-empty parentheses";
+    use_try_shorthand: bool, false, "Replace uses of the try! macro by the ? shorthand";
+    write_mode: WriteMode, WriteMode::Overwrite,
         "What Write Mode to use when none is supplied: \
          Replace, Overwrite, Display, Plain, Diff, Coverage";
-    condense_wildcard_suffixes: bool, false, false, "Replace strings of _ wildcards by a single ..\
-                                              in tuple patterns";
-    combine_control_expr: bool, true, false, "Combine control expressions with funciton calls.";
-    struct_field_align_threshold: usize, 0, false, "Align struct fields if their diffs fits within \
+    condense_wildcard_suffixes: bool, false, "Replace strings of _ wildcards by a single .. in \
+                                              tuple patterns";
+    combine_control_expr: bool, true, "Combine control expressions with funciton calls.";
+    struct_field_align_threshold: usize, 0, "Align struct fields if their diffs fits within \
                                              threshold.";
-    remove_blank_lines_at_start_or_end_of_block: bool, true, false,
+    remove_blank_lines_at_start_or_end_of_block: bool, true,
         "Remove blank lines at start or end of a block";
-    attributes_on_same_line_as_field: bool, true, false,
+    attributes_on_same_line_as_field: bool, true,
         "Try to put attributes on the same line as fields.";
-    attributes_on_same_line_as_variant: bool, true, false,
+    attributes_on_same_line_as_variant: bool, true,
         "Try to put attributes on the same line as variants in enum declarations.";
-    multiline_closure_forces_block: bool, false, false,
+    multiline_closure_forces_block: bool, false,
         "Force multiline closure bodies to be wrapped in a block";
-    multiline_match_arm_forces_block: bool, false, false,
+    multiline_match_arm_forces_block: bool, false,
         "Force multiline match arm bodies to be wrapped in a block";
-    // TODO: these two is NOT Experimental Feature, only for testing
-    merge_derives: bool, true, false, "Merge multiple `#[derive(...)]` into a single one";
-    binop_separator: SeparatorPlace, SeparatorPlace::Front, false,
+    merge_derives: bool, true, "Merge multiple `#[derive(...)]` into a single one";
+    binop_separator: SeparatorPlace, SeparatorPlace::Front,
         "Where to put a binary operator when a binary expression goes multiline.";
 }
 
